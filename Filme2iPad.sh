@@ -19,23 +19,7 @@
 
 VERSION="v2015092000"
 
-#set -x
-
 #==============================================================================#
-### -ton) -> TONSPUR / TSNAME
-
-# ${PROGRAMM} -i ${FILMDATEI}
-#  Duration: 00:42:21.24, start: 0.230467, bitrate: 9227 kb/s
-#    Stream #0:0[0x1bf]: Data: dvd_nav_packet
-#    Stream #0:1[0x1e0]: Video: mpeg2video (Main), yuv420p(tv), 720x576 [SAR 16:15 DAR 4:3], max. 8000 kb/s, 25 fps, 25 tbr, 90k tbn, 50 tbc
-#    Stream #0:2[0x1c0]: Audio: mp2, 48000 Hz, stereo, s16p, 256 kb/s
-#    Stream #0:3[0x1c1]: Audio: mp2, 48000 Hz, stereo, s16p, 256 kb/s
-#    Stream #0:4[0x1c2]: Audio: mp2, 48000 Hz, stereo, s16p, 256 kb/s
-#    Stream #0:5[0x1c3]: Audio: mp2, 48000 Hz, stereo, s16p, 256 kb/s
-
-#==============================================================================#
-
-################################################################################
 
 while [ "${#}" -ne "0" ]; do
         case "${1}" in
@@ -100,11 +84,6 @@ else
         MP4DATEI="$(echo "${MP4DATEI} ${TSNAME}" | rev | sed 's/[.]/ /' | rev | awk '{print $1"_-_Tonspur_"$3"."$2}')"
 fi
 
-################################################################################
-
-#OPTIONEN="${@}"
-
-################################################################################
 #------------------------------------------------------------------------------#
 
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -136,23 +115,16 @@ if [ -z "${PROGRAMM}" ] ; then
         exit 1
 fi
 
-
 #==============================================================================#
 ### hier wird ermittelt, ob der film progressiv oder im Zeilensprungverfahren vorliegt
 SCAN_TYPE="$(mediainfo -f ${FILMDATEI} | grep -Fv pixels | awk -F':' '/Scan type[ ]+/{print $2}' | tr -s ' ' '\n' | egrep -v '^$' | head -n1)"
-echo "/Scan type: '${SCAN_TYPE}'"
-
 if [ "${SCAN_TYPE}" != "Progressive" ] ; then
         ### wenn der Film im Zeilensprungverfahren vorliegt
         ZEILENSPRUNG="yadif,"
 fi
-#ZEILENSPRUNG="yadif,"
 
-
-if [ "${VIDEOCODEC}" != "copy" ] ; then
-        ### universelle Variante
-        VIDEOOPTION="-vf ${ZEILENSPRUNG}pad='max(iw\\,ih*(16/9)):ow/(16/9):(ow-iw)/2:(oh-ih)/2',scale='1024:576',setsar='1/1'"
-fi
+### universelle Variante
+VIDEOOPTION="-vf ${ZEILENSPRUNG}pad='max(iw\\,ih*(16/9)):ow/(16/9):(ow-iw)/2:(oh-ih)/2',scale='1024:576',setsar='1/1'"
 
 START_iPad="${PROGRAMM} -i ${FILMDATEI} ${OPTIONEN} -map 0:v -map 0:a:${TONSPUR} -c:v ${VIDEOCODEC} ${VIDEOOPTION} -c:a ${AUDIOCODEC} ${AUDIOOPTION} -y ${MP4DATEI}"
 
