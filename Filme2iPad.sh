@@ -9,7 +9,7 @@
 #
 # Es werden folgende Programme von diesem Skript verwendet:
 #  - mediainfo
-#  - avconv (libav-tools) oder ffmpeg
+#  - avconv (libav-tools) oder ffmpeg (mit ffmpeg getestet)
 #
 #
 ### iPad2
@@ -17,114 +17,155 @@
 #
 #------------------------------------------------------------------------------#
 
-VERSION="v2015012701"
+VERSION="v2015092000"
+
+#set -x
+
+#==============================================================================#
+### -ton) -> TONSPUR / TSNAME
+
+# ${PROGRAMM} -i ${FILMDATEI}
+#  Duration: 00:42:21.24, start: 0.230467, bitrate: 9227 kb/s
+#    Stream #0:0[0x1bf]: Data: dvd_nav_packet
+#    Stream #0:1[0x1e0]: Video: mpeg2video (Main), yuv420p(tv), 720x576 [SAR 16:15 DAR 4:3], max. 8000 kb/s, 25 fps, 25 tbr, 90k tbn, 50 tbc
+#    Stream #0:2[0x1c0]: Audio: mp2, 48000 Hz, stereo, s16p, 256 kb/s
+#    Stream #0:3[0x1c1]: Audio: mp2, 48000 Hz, stereo, s16p, 256 kb/s
+#    Stream #0:4[0x1c2]: Audio: mp2, 48000 Hz, stereo, s16p, 256 kb/s
+#    Stream #0:5[0x1c3]: Audio: mp2, 48000 Hz, stereo, s16p, 256 kb/s
+
+#==============================================================================#
+
+################################################################################
+
+while [ "${#}" -ne "0" ]; do
+        case "${1}" in
+                -q)
+                        FILMDATEI="${2}"
+                        shift
+                        ;;
+                -z)
+                        MP4DATEI="${2}"
+                        shift
+                        ;;
+                -ton)
+                        TONSPUR=${2}     # "0:5" ist die 4. Tonspur also, weil 0 die erste ist (0, 1, 2, 3), muss hier "3" stehen
+                        TSNAME="${2}"
+                        shift
+                        ;;
+                -h)
+                        echo "
+                        HILFE:
+                        # Video- und Audio-Spur in ein iPad-kompatibles Format transkodieren
+                        ${0} [Option] -q [Filmname] -z [Neuer_Filmname.mp4]
+                        ${0} [Option] -q [Filmname] -z [Neuer_Filmname.m4v]
+                        ${0} -q Film.mkv -z Film.mp4
+                        ${0} -ton 1 -q Film.mkv -z Film.m4v
+                        ${0} -ton 2 -q Film.mkv -z Film.mp4
+                        ${0} -ton 3 -q \"Film mit Leerzeichen.mkv\" -z Film.m4v
+
+                        Es duerfen in den Dateinamen keine Leerzeichen, Sonderzeichen
+                        oder Klammern enthalten sein!
+                        "
+                        exit 1
+                        ;;
+                *)
+                        if [ "$(echo "${1}"|egrep '^-')" ] ; then
+                                echo "Der Parameter '${1}' wird nicht unterstützt!"
+                        fi
+                        shift
+                        ;;
+        esac
+done
+
+#------------------------------------------------------------------------------#
+
+if [ -z "${TONSPUR}" ] ; then
+        TONSPUR="0"     # die erste Tonspur ist "0"
+fi
+
+case "${MP4DATEI}" in
+        [a-zA-Z0-9\_\-\+][a-zA-Z0-9\_\-\+]*[.][Mm][Pp4][Vv4])
+                ENDUNG="richtig"
+                shift
+                ;;
+        *)
+                ENDUNG="falsch"
+                shift
+                ;;
+esac
+
+if [ -z "${TSNAME}" ] ; then
+        MP4DATEI="$(echo "${MP4DATEI} ${TSNAME}" | rev | sed 's/[.]/ /' | rev | awk '{print $1"."$2}')"
+else
+        MP4DATEI="$(echo "${MP4DATEI} ${TSNAME}" | rev | sed 's/[.]/ /' | rev | awk '{print $1"_-_Tonspur_"$3"."$2}')"
+fi
+
+################################################################################
+
+#OPTIONEN="${@}"
+
+################################################################################
+#------------------------------------------------------------------------------#
 
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 VIDEOCODEC="libx264"
 
 if [ "FreeBSD" = "$(uname -s)" ] ; then
-	AUDIOCODEC="libfaac"	# "non-free"-Lizenz; funktioniert aber
-	#AUDIOCODEC="aac"	# free-Lizenz; ist noch experimentell
-	#AUDIOCODEC="aac -strict experimental"
+        AUDIOCODEC="libfaac"    # "non-free"-Lizenz; funktioniert aber
+        #AUDIOCODEC="aac"       # free-Lizenz; ist noch experimentell
+        #AUDIOCODEC="aac -strict experimental"
 elif [ "Linux" = "$(uname -s)" ] ; then
-	#AUDIOCODEC="libfaac"	# "non-free"-Lizenz; funktioniert aber
-	#AUDIOCODEC="aac"	# free-Lizenz; ist noch experimentell
-	AUDIOCODEC="aac -strict experimental" # das geht ohne www.medibuntu.org
+        #AUDIOCODEC="libfaac"   # "non-free"-Lizenz; funktioniert aber
+        #AUDIOCODEC="aac"       # free-Lizenz; ist noch experimentell
+        AUDIOCODEC="aac -strict experimental" # das geht ohne www.medibuntu.org
 fi
 
-#------------------------------------------------------------------------------#
-
-FILMDATEI="${1}"
-MP4DATEI="${2}"
-
-#------------------------------------------------------------------------------#
-
-hilfe()
-{
-	echo "
-	# Video- und Audio-Spur in ein iPad-kompatibles Format transkodieren
-	${0} Film.mkv Film.mp4
-	${0} Film.mkv Film.m4v
-
-	Es duerfen in den Dateinamen keine Leerzeichen, Sonderzeichen
-	oder Klammern enthalten sein!
-	"
-
-	exit 1
-}
-
-if [ -z "${MP4DATEI}" ] ; then
-	hilfe
+if [ "${AUDIOCODEC}" != "copy" ] ; then
+        AUDIOOPTION="-b:a 128k -ar 44100"
 fi
 
 #==============================================================================#
-
-case "${2}" in
-       	[a-zA-Z0-9\_\-\+][a-zA-Z0-9\_\-\+]*[.][Mm][Pp4][Vv4])
-		ENDUNG="richtig"
-		shift
-		;;
-       	*)
-		ENDUNG="falsch"
-		shift
-		;;
-esac
-
-if [ -z "${MP4DATEI}" ] ; then
-	echo "
-	Die Endung der Zieldatei ist falsch!
-
-	${0} Film.mkv Film.mp4
-	${0} Film.mkv Film.m4v
-
-	Es duerfen in den Dateinamen keine Leerzeichen, Sonderzeichen
-	oder Klammern enthalten sein!
-	"
-	exit 1
-fi
-
-#------------------------------------------------------------------------------#
-
-if [ -z "${FILMDATEI}" ] ; then
-	hilfe
-fi
-if [ -z "${MP4DATEI}" ] ; then
-	hilfe
-fi
-
 
 PROGRAMM="$(which avconv)"
 if [ -z "${PROGRAMM}" ] ; then
-	PROGRAMM="$(which ffmpeg)"
+        PROGRAMM="$(which ffmpeg)"
 fi
 
 if [ -z "${PROGRAMM}" ] ; then
-	echo "Weder avconv noch ffmpeg konnten gefunden werden. Abbruch!"
-	exit 1
+        echo "Weder avconv noch ffmpeg konnten gefunden werden. Abbruch!"
+        exit 1
 fi
 
-
-### es wird die passende Bildhöhe für eine Bildbreite von 1024 Pixel ermittelt
-if [ -r $(which mediainfo) ] ; then
-	BILDHOEHE="$(mediainfo ${FILMDATEI} | awk '/Display aspect ratio/{print $NF}' | awk '{gsub("[/:]"," ");printf "%.0f\n", 1024 * $2 / $1 / 2}' | awk '{print $1 * 2}')"
-else
-	### wenn mediainfo nicht installiert ist, dann gehen wir von einem Bildformat von 16/9 aus
-	BILDHOEHE="576"
-fi
-
-if [ "${VIDEOCODEC}" != "copy" ] ; then
-	VIDEOOPTION="-vf scale=1024:${BILDHOEHE}"
-fi
-if [ "${AUDIOCODEC}" != "copy" ] ; then
-	AUDIOOPTION="-b:a 128k -ar 44100"
-fi
 
 #==============================================================================#
-echo "${PROGRAMM} -i ${FILMDATEI} -c:v ${VIDEOCODEC} ${VIDEOOPTION} -c:a ${AUDIOCODEC} ${AUDIOOPTION} -y ${MP4DATEI}"
+### hier wird ermittelt, ob der film progressiv oder im Zeilensprungverfahren vorliegt
+SCAN_TYPE="$(mediainfo -f ${FILMDATEI} | grep -Fv pixels | awk -F':' '/Scan type[ ]+/{print $2}' | tr -s ' ' '\n' | egrep -v '^$' | head -n1)"
+echo "/Scan type: '${SCAN_TYPE}'"
 
-${PROGRAMM} -i ${FILMDATEI} -c:v ${VIDEOCODEC} ${VIDEOOPTION} -c:a ${AUDIOCODEC} ${AUDIOOPTION} -y ${MP4DATEI}
+if [ "${SCAN_TYPE}" != "Progressive" ] ; then
+        ### wenn der Film im Zeilensprungverfahren vorliegt
+        ZEILENSPRUNG="yadif,"
+fi
+#ZEILENSPRUNG="yadif,"
 
-echo "${PROGRAMM} -i ${FILMDATEI} -c:v ${VIDEOCODEC} ${VIDEOOPTION} -c:a ${AUDIOCODEC} ${AUDIOOPTION} -y ${MP4DATEI}"
+
+if [ "${VIDEOCODEC}" != "copy" ] ; then
+        ### universelle Variante
+        VIDEOOPTION="-vf ${ZEILENSPRUNG}pad='max(iw\\,ih*(16/9)):ow/(16/9):(ow-iw)/2:(oh-ih)/2',scale='1024:576',setsar='1/1'"
+fi
+
+START_iPad="${PROGRAMM} -i ${FILMDATEI} ${OPTIONEN} -map 0:v -map 0:a:${TONSPUR} -c:v ${VIDEOCODEC} ${VIDEOOPTION} -c:a ${AUDIOCODEC} ${AUDIOOPTION} -y ${MP4DATEI}"
+
+#==============================================================================#
+echo "
+${START_iPad}
+"
+
+${START_iPad}
+
+echo "
+${START_iPad}
+"
 #------------------------------------------------------------------------------#
 
 exit
